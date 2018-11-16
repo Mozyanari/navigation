@@ -587,7 +587,7 @@ void AmclNode::reconfigureCB(AMCLConfig &config, uint32_t level)
     ROS_INFO("Initializing likelihood field model; this can take some time on large maps...");
     laser_->SetModelLikelihoodField(z_hit_, z_rand_, sigma_hit_,
                                     laser_likelihood_max_dist_);
-    ROS_INFO("Done initializing likelihood field model.");
+    ROS_INFO("Done initializing likelihood field model.OK");
   }
 
   odom_frame_id_ = config.odom_frame_id;
@@ -872,14 +872,14 @@ AmclNode::handleMapMessage(const nav_msgs::OccupancyGrid& msg)
 					laser_likelihood_max_dist_, 
 					do_beamskip_, beam_skip_distance_, 
 					beam_skip_threshold_, beam_skip_error_threshold_);
-    ROS_INFO("Done initializing likelihood field model.");
+    ROS_INFO("Done initializing likelihood field model.OK");
   }
   else
   {
     ROS_INFO("Initializing likelihood field model; this can take some time on large maps...");
     laser_->SetModelLikelihoodField(z_hit_, z_rand_, sigma_hit_,
                                     laser_likelihood_max_dist_);
-    ROS_INFO("Done initializing likelihood field model.");
+    ROS_INFO("Done initializing likelihood field model.OK");
   }
 
   // In case the initial pose message arrived before the first map,
@@ -1047,6 +1047,7 @@ AmclNode::setMapCallback(nav_msgs::SetMap::Request& req,
   return true;
 }
 
+//LRFデータを受信した時のコールバック関数
 void
 AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
 {
@@ -1100,6 +1101,7 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
   }
 
   // Where was the robot when this scan was taken?
+  //poseにオドメトリを入力
   pf_vector_t pose;
   if(!getOdomPose(latest_odom_pose_, pose.v[0], pose.v[1], pose.v[2],
                   laser_scan->header.stamp, base_frame_id_))
@@ -1114,6 +1116,7 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
   if(pf_init_)
   {
     // Compute change in pose
+    //pf_odom_poseには一つ前のodom情報が入っていて，現在との差がd_thresh，a_threshを超えるとupdateする
     //delta = pf_vector_coord_sub(pose, pf_odom_pose_);
     delta.v[0] = pose.v[0] - pf_odom_pose_.v[0];
     delta.v[1] = pose.v[1] - pf_odom_pose_.v[1];
@@ -1163,6 +1166,7 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
     odata.delta = delta;
 
     // Use the action data to update the filter
+    //amcl_odomの中のUpdateActionでパーティクルの移動
     odom_->UpdateAction(pf_, (AMCLSensorData*)&odata);
 
     // Pose at last filter update
@@ -1234,13 +1238,28 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
               (i * angle_increment);
     }
 
+    //レーザによる尤度計算
     lasers_[laser_index]->UpdateSensor(pf_, (AMCLSensorData*)&ldata);
 
     lasers_update_[laser_index] = false;
 
     pf_odom_pose_ = pose;
 
+    //ここに連結による尤度の計算
+    for(int i=0;i<10;i++){
+      for(int j=0;j<3;j++){
+      ROS_INFO("pf_%f",pf_->sets[0].samples[i].pose.v[j]);
+      ROS_INFO("OK");
+      }
+    }
+    ROS_INFO("pf_%f",pf_->sets[0].samples[0].weight);
+    ROS_INFO("pf_%f",pf_->sets[0].samples[1].weight);
+    ROS_INFO("pf_%f",pf_->sets[0].samples[2].weight);
+    
+
+    //リサンプリングするかどうか
     // Resample the particles
+    //resample_intervalで割れたらする
     if(!(++resample_count_ % resample_interval_))
     {
       pf_update_resample(pf_);
@@ -1259,11 +1278,14 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
       cloud_msg.poses.resize(set->sample_count);
       for(int i=0;i<set->sample_count;i++)
       {
+        //setの中身がpointcloud
+        //v[2]はyaw，v[0]はx，v[1]はy，tf::Poseは第一引数にyawを入れてクオータニオンに変換
         tf::poseTFToMsg(tf::Pose(tf::createQuaternionFromYaw(set->samples[i].pose.v[2]),
                                  tf::Vector3(set->samples[i].pose.v[0],
                                            set->samples[i].pose.v[1], 0)),
                         cloud_msg.poses[i]);
       }
+      //particlecloudを出力
       particlecloud_pub_.publish(cloud_msg);
     }
   }
@@ -1346,7 +1368,7 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
          puts("");
          }
        */
-
+      //amcl_poseを出力
       pose_pub_.publish(p);
       last_published_pose = p;
 

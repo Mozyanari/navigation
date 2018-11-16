@@ -74,8 +74,10 @@ pf_t *pf_alloc(int min_samples, int max_samples,
   for (j = 0; j < 2; j++)
   {
     set = pf->sets + j;
-      
+
+
     set->sample_count = max_samples;
+    //max_sample分のsamples配列を取得する
     set->samples = calloc(max_samples, sizeof(pf_sample_t));
 
     for (i = 0; i < set->sample_count; i++)
@@ -269,6 +271,7 @@ void pf_update_sensor(pf_t *pf, pf_sensor_model_fn_t sensor_fn, void *sensor_dat
   set = pf->sets + pf->current_set;
 
   // Compute the sample weights
+  //尤度計算を行う
   total = (*sensor_fn) (sensor_data, set);
   
   if (total > 0.0)

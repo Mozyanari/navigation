@@ -79,7 +79,7 @@ AMCLLaser::SetModelBeam(double z_hit,
   this->lambda_short = lambda_short;
   this->chi_outlier = chi_outlier;
 }
-
+//デフォルトはこの尤度計算
 void 
 AMCLLaser::SetModelLikelihoodField(double z_hit,
                                    double z_rand,
@@ -285,6 +285,7 @@ double AMCLLaser::LikelihoodFieldModel(AMCLLaserData *data, pf_sample_set_t* set
 
       // TODO: outlier rejection for short readings
 
+      //pzが0以上1以下かを確認
       assert(pz <= 1.0);
       assert(pz >= 0.0);
       //      p *= pz;
@@ -410,14 +411,14 @@ double AMCLLaser::LikelihoodFieldModelProb(AMCLLaserData *data, pf_sample_set_t*
       // Off-map penalized as max distance
       
       if(!MAP_VALID(self->map, mi, mj)){
-	pz += self->z_hit * max_dist_prob;
+        pz += self->z_hit * max_dist_prob;
       }
       else{
-	z = self->map->cells[MAP_INDEX(self->map,mi,mj)].occ_dist;
-	if(z < beam_skip_distance){
-	  obs_count[beam_ind] += 1;
-	}
-	pz += self->z_hit * exp(-(z * z) / z_hit_denom);
+        z = self->map->cells[MAP_INDEX(self->map,mi,mj)].occ_dist;
+        if(z < beam_skip_distance){
+          obs_count[beam_ind] += 1;
+          }
+          pz += self->z_hit * exp(-(z * z) / z_hit_denom);
       }
        
       // Gaussian model
