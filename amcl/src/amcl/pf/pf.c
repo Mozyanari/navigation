@@ -268,10 +268,13 @@ void pf_update_sensor(pf_t *pf, pf_sensor_model_fn_t sensor_fn, void *sensor_dat
   pf_sample_t *sample;
   double total;
 
+  //今現在のパーティクルのセットを設定
   set = pf->sets + pf->current_set;
 
   // Compute the sample weights
   //尤度計算を行う
+  //関数へのポインタを使って計算
+  //ここでLikelihoodFieldModelを実行
   total = (*sensor_fn) (sensor_data, set);
   
   if (total > 0.0)

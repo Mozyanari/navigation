@@ -38,6 +38,9 @@
 
 #include "ros/assert.h"
 
+//#include "amcl"
+#include <geometry_msgs/Pose2D.h>
+
 // roscpp
 #include "ros/ros.h"
 
@@ -164,6 +167,10 @@ class AmclNode
 
     double getYaw(tf::Pose& t);
 
+    //自作部分
+    void other_robot_odom(const geometry_msgs::Pose2D::ConstPtr &position);
+    geometry_msgs::Pose2D other_position;
+
     //parameter for what odom to use
     std::string odom_frame_id_;
 
@@ -238,6 +245,9 @@ class AmclNode
     ros::ServiceServer set_map_srv_;
     ros::Subscriber initial_pose_sub_old_;
     ros::Subscriber map_sub_;
+
+    //自作部分
+    ros::Subscriber other_odom_sub_;
 
     amcl_hyp_t* initial_pose_hyp_;
     bool first_map_received_;
@@ -460,6 +470,10 @@ AmclNode::AmclNode() :
   laser_check_interval_ = ros::Duration(15.0);
   check_laser_timer_ = nh_.createTimer(laser_check_interval_, 
                                        boost::bind(&AmclNode::checkLaserReceived, this, _1));
+
+
+  //自作部分
+  other_odom_sub_ = nh_.subscribe("other_pose",5,&AmclNode::other_robot_odom,this);
 }
 
 void AmclNode::reconfigureCB(AMCLConfig &config, uint32_t level)
@@ -604,6 +618,7 @@ void AmclNode::reconfigureCB(AMCLConfig &config, uint32_t level)
                                                    this, _1));
 
   initial_pose_sub_ = nh_.subscribe("initialpose", 2, &AmclNode::initialPoseReceived, this);
+
 }
 
 
@@ -1246,15 +1261,25 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
     pf_odom_pose_ = pose;
 
     //ここに連結による尤度の計算
-    for(int i=0;i<10;i++){
+    /*
+    for(int i=0;i<pf_->sets[0].sample_count;i++){
       for(int j=0;j<3;j++){
       ROS_INFO("pf_%f",pf_->sets[0].samples[i].pose.v[j]);
       ROS_INFO("OK");
       }
     }
+    */
+    
+    //pf_->current_setはリサンプリングすると入れ替わる
+    ROS_INFO("current_%d",pf_->current_set);
+    //ROS_INFO("count_%d",pf_->sets[0].sample_count);
+
+
+    /*
     ROS_INFO("pf_%f",pf_->sets[0].samples[0].weight);
     ROS_INFO("pf_%f",pf_->sets[0].samples[1].weight);
     ROS_INFO("pf_%f",pf_->sets[0].samples[2].weight);
+    */
     
 
     //リサンプリングするかどうか
@@ -1266,6 +1291,8 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
       resampled = true;
     }
 
+    //最新のパーティクルのセットが取得できる
+    //アドレスにint型の数字を足すことでその分だけアドレスの移動
     pf_sample_set_t* set = pf_->sets + pf_->current_set;
     ROS_DEBUG("Num samples: %d\n", set->sample_count);
 
@@ -1553,4 +1580,9 @@ AmclNode::applyInitialPose()
     delete initial_pose_hyp_;
     initial_pose_hyp_ = NULL;
   }
+}
+
+void AmclNode::other_robot_odom(const geometry_msgs::Pose2D::ConstPtr &position){
+  //他のロボットの位置を取得
+  other_position = *position;
 }
