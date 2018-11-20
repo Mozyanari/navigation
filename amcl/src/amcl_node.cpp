@@ -1270,8 +1270,9 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
     }
     */
     
+    
     //pf_->current_setはリサンプリングすると入れ替わる
-    ROS_INFO("current_%d",pf_->current_set);
+    //ROS_INFO("current_%d",pf_->current_set);
     //ROS_INFO("count_%d",pf_->sets[0].sample_count);
 
 
@@ -1280,8 +1281,10 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
     ROS_INFO("pf_%f",pf_->sets[0].samples[1].weight);
     ROS_INFO("pf_%f",pf_->sets[0].samples[2].weight);
     */
-    
-
+  
+    pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].pose.v[0] = 1;
+    pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].pose.v[1] = 1;
+    pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].weight = 10;
     //リサンプリングするかどうか
     // Resample the particles
     //resample_intervalで割れたらする
@@ -1290,6 +1293,12 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
       pf_update_resample(pf_);
       resampled = true;
     }
+
+    for(int i=0;i<pf_->sets[pf_->current_set].sample_count;i++){
+      ROS_INFO("weight_%d_%f",i,pf_->sets[pf_->current_set].samples[i].weight);
+      //pf_->sets[pf_->current_set].samples[i].weight = 0;
+    }
+    
 
     //最新のパーティクルのセットが取得できる
     //アドレスにint型の数字を足すことでその分だけアドレスの移動
@@ -1323,6 +1332,7 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
     double max_weight = 0.0;
     int max_weight_hyp = -1;
     std::vector<amcl_hyp_t> hyps;
+    //hypsがclusterカウント個の要素を格納するようにサイズを変更
     hyps.resize(pf_->sets[pf_->current_set].cluster_count);
     for(int hyp_count = 0;
         hyp_count < pf_->sets[pf_->current_set].cluster_count; hyp_count++)
@@ -1349,7 +1359,8 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
 
     if(max_weight > 0.0)
     {
-      ROS_DEBUG("Max weight pose: %.3f %.3f %.3f",
+      ROS_INFO("%f",max_weight);
+      ROS_INFO("Max weight pose: %.3f %.3f %.3f",
                 hyps[max_weight_hyp].pf_pose_mean.v[0],
                 hyps[max_weight_hyp].pf_pose_mean.v[1],
                 hyps[max_weight_hyp].pf_pose_mean.v[2]);
