@@ -520,6 +520,9 @@ void pf_cluster_stats(pf_t *pf, pf_sample_set_t *set)
       c[j][k] = 0.0;
   
   // Compute cluster stats
+  //クラスタの状態を計算
+  //クラスタはKLDsamplenigのために保持されている
+  //https://answers.ros.org/question/242210/whats-the-principle-of-particle-samples-clusters-in-the-amcl-packages/
   for (i = 0; i < set->sample_count; i++)
   {
     sample = set->samples + i;
