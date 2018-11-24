@@ -40,6 +40,7 @@
 
 //#include "amcl"
 #include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/PoseArray.h>
 
 // roscpp
 #include "ros/ros.h"
@@ -168,8 +169,11 @@ class AmclNode
     double getYaw(tf::Pose& t);
 
     //自作部分
-    void other_robot_odom(const geometry_msgs::Pose2D::ConstPtr &position);
-    geometry_msgs::Pose2D other_position;
+    //void other_robot_odom(const geometry_msgs::Pose2D::ConstPtr &position);
+    //geometry_msgs::Pose2D other_position;
+    void other_robot_pointcloud(const geometry_msgs::PoseArray::ConstPtr &position);
+    geometry_msgs::PoseArray other_pointcloud;
+    
 
     //parameter for what odom to use
     std::string odom_frame_id_;
@@ -473,7 +477,7 @@ AmclNode::AmclNode() :
 
 
   //自作部分
-  other_odom_sub_ = nh_.subscribe("other_pose",5,&AmclNode::other_robot_odom,this);
+  other_odom_sub_ = nh_.subscribe("other_poses",5,&AmclNode::other_robot_pointcloud,this);
 }
 
 void AmclNode::reconfigureCB(AMCLConfig &config, uint32_t level)
@@ -1260,6 +1264,10 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
 
     pf_odom_pose_ = pose;
 
+    //自作部分
+    
+
+
     //ここに連結による尤度の計算
     /*
     for(int i=0;i<pf_->sets[0].sample_count;i++){
@@ -1269,7 +1277,12 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
       }
     }
     */
-    
+   /*
+    for(int i=0;i<pf_->sets[pf_->current_set].sample_count;i++){
+      ROS_INFO("weight_%d_%f",i,pf_->sets[pf_->current_set].samples[i].weight);
+      //pf_->sets[pf_->current_set].samples[i].weight = 0;
+    }
+    */
     
     //pf_->current_setはリサンプリングすると入れ替わる
     //ROS_INFO("current_%d",pf_->current_set);
@@ -1282,9 +1295,10 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
     ROS_INFO("pf_%f",pf_->sets[0].samples[2].weight);
     */
   
-    pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].pose.v[0] = 1;
-    pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].pose.v[1] = 1;
-    pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].weight = 10;
+    //pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].pose.v[0] = 1;
+    //pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].pose.v[1] = 1;
+    //pf_->sets[pf_->current_set].samples[(pf_->sets[pf_->current_set].sample_count)-1].weight = 10;
+
     //リサンプリングするかどうか
     // Resample the particles
     //resample_intervalで割れたらする
@@ -1294,10 +1308,12 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
       resampled = true;
     }
 
+    /*
     for(int i=0;i<pf_->sets[pf_->current_set].sample_count;i++){
       ROS_INFO("weight_%d_%f",i,pf_->sets[pf_->current_set].samples[i].weight);
       //pf_->sets[pf_->current_set].samples[i].weight = 0;
     }
+    */
     
 
     //最新のパーティクルのセットが取得できる
@@ -1592,8 +1608,29 @@ AmclNode::applyInitialPose()
     initial_pose_hyp_ = NULL;
   }
 }
-
-void AmclNode::other_robot_odom(const geometry_msgs::Pose2D::ConstPtr &position){
+//自作部分
+void AmclNode::other_robot_pointcloud(const geometry_msgs::PoseArray::ConstPtr &position){
   //他のロボットの位置を取得
-  other_position = *position;
+  //other_pointcloud = *position;
+  int size = position->poses.size();
+  ROS_INFO("size_%d",size);
+
+  //相手のpointcloudのオフセット位置の計算
+  //geometry_msgs::PoseArray offset_other_pointcloud;
+  double offset_length = 0.16;
+  //以前のpointcloudを削除
+  other_pointcloud.poses.clear();
+  //pointcloudをリサイズする
+  other_pointcloud.poses.resize(size);
+
+  //オフセット位置のpointcloudを計算
+  for(int i=0;i<size;i++){
+    //yaw軸を計算
+    other_pointcloud.poses[i].position.z = tf::getYaw(position->poses[i].orientation);
+    //オフセット位置のx,y位置の計算
+    other_pointcloud.poses[i].position.x = position->poses[i].position.x - (offset_length * cos(other_pointcloud.poses[i].position.z));
+    other_pointcloud.poses[i].position.y = position->poses[i].position.y - (offset_length * sin(other_pointcloud.poses[i].position.z));
+  }
 }
+
+//void AmclNode::RelateLik
