@@ -171,8 +171,12 @@ class AmclNode
     //自作部分
     //void other_robot_odom(const geometry_msgs::Pose2D::ConstPtr &position);
     //geometry_msgs::Pose2D other_position;
+    //他のロボットのパーティクルの取得
     void other_robot_pointcloud(const geometry_msgs::PoseArray::ConstPtr &position);
     geometry_msgs::PoseArray other_pointcloud;
+    int link_frag = 0;
+
+    void LinkLikelihoodField(geometry_msgs::PoseArray *position, pf_t *pf);
     
 
     //parameter for what odom to use
@@ -1256,6 +1260,12 @@ AmclNode::laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan)
       ldata.ranges[i][1] = angle_min +
               (i * angle_increment);
     }
+    
+    //連結位置を使った尤度計算
+    if(link_frag){
+       AmclNode::LinkLikelihoodField(&other_pointcloud ,pf_);
+     }
+
 
     //レーザによる尤度計算
     lasers_[laser_index]->UpdateSensor(pf_, (AMCLSensorData*)&ldata);
@@ -1631,6 +1641,49 @@ void AmclNode::other_robot_pointcloud(const geometry_msgs::PoseArray::ConstPtr &
     other_pointcloud.poses[i].position.x = position->poses[i].position.x - (offset_length * cos(other_pointcloud.poses[i].position.z));
     other_pointcloud.poses[i].position.y = position->poses[i].position.y - (offset_length * sin(other_pointcloud.poses[i].position.z));
   }
+  link_frag = 0;
 }
+void AmclNode::LinkLikelihoodField(geometry_msgs::PoseArray *position, pf_t *pf){
+  //まずは実行フラグを折る
+  link_frag = 1;
+  //ロボット間距離
+  double link_distance = 1.0;
+  //使用するパーティクル
+  pf_sample_set_t *set;
+  pf_sample_t *sample;
+  pf_vector_t pose;
+  set = pf->sets + pf->current_set;
 
-//void AmclNode::RelateLik
+  //ガウス分布のパラメータ
+  double sigma = 0.01;
+
+  //それぞれのパーティクルの重み
+  double p = 1.0;
+  double total_weight = 0.0;
+
+  //現在のパーティクルの数だけ回す
+  for (int i = 0; i < set->sample_count; i++)
+  {
+    sample = set->samples + i;
+    pose = sample->pose;
+
+    //相手のロボットのパーティクル数だけ回す
+    for(int j = 0; j < other_pointcloud.poses.size(); j++){
+      //まずはパーティクル間の距離を計算
+      double particle_distance = sqrt( (pow((pose.v[0] - other_pointcloud.poses[j].position.x),2)) + (pow((pose.v[1] - other_pointcloud.poses[j].position.y),2)) );
+      double particle_distance_error = link_distance - particle_distance;
+      //距離からガウス分布を用いて重みを計算
+      double weight = exp(-(particle_distance_error * particle_distance_error) / 2 * sigma * sigma);
+      //ROS_INFO("weight_%f",weight);
+
+      assert(weight <= 1.0);
+      assert(weight >= 0.0);
+
+      p += weight*weight*weight;
+    }
+
+    sample->weight *= p;
+    total_weight += sample->weight;
+  }
+  ROS_INFO("link_weight_%f",total_weight);
+}
